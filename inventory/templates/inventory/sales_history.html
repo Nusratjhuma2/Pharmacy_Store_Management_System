@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load currency %}
+{% block title %}Sales History - Pharmacy{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Sales History</h4>
+  <a class="btn btn-outline-primary" href="{% url 'sell' %}">New Sale</a>
+  </div>
+
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-3">
+    <input type="date" class="form-control" name="from" value="{{ request.GET.from }}" placeholder="From">
+  </div>
+  <div class="col-md-3">
+    <input type="date" class="form-control" name="to" value="{{ request.GET.to }}" placeholder="To">
+  </div>
+  <div class="col-md-3">
+    <input type="text" class="form-control" name="customer" value="{{ request.GET.customer }}" placeholder="Customer">
+  </div>
+  <div class="col-md-3">
+    <button class="btn btn-outline-secondary w-100" type="submit">Filter</button>
+  </div>
+</form>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Cashier</th>
+            <th class="text-end">Total</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sales %}
+          <tr>
+            <td>{{ s.id }}</td>
+            <td>{{ s.created_at }}</td>
+            <td>{{ s.customer_name|default:'Walk-in' }}</td>
+            <td>{{ s.created_by.username }}</td>
+            <td class="text-end">{{ s.total_amount|money }}</td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'receipt' s.id %}">Receipt</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">No sales yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+

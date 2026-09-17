@@ -1,0 +1,430 @@
+{% extends 'base.html' %}
+{% block title %}Sell - Pharmacy{% endblock %}
+{% block content %}
+<style>
+  .cart-table thead th { background: #f8fafc; }
+  .cart-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border:1px solid #e2e8f0; background:#fff; }
+  .cart-summary { position: sticky; top: 12px; }
+  .stock-note { font-size: 12px; color:#64748b; }
+  .stock-badge { font-size: 12px; }
+  .cart-subtotal { min-width: 90px; text-align: right; }
+  .cart-actions { white-space: nowrap; }
+  @media (max-width: 768px) { .cart-actions { margin-top: 8px; display: block; } }
+  /* removed search styles */
+</style>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <h4 class="mb-0">Cart</h4>
+        </div>
+        <form method="post" id="sell-form" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="row g-3 align-items-end mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Customer Name</label>
+              <input class="form-control" name="customer_name" placeholder="Optional">
+            </div>
+          </div>
+          <input type="hidden" name="item-TOTAL_FORMS" id="total-forms" value="{% if cart_items %}{{ cart_items|length }}{% else %}1{% endif %}">
+
+          <div class="table-responsive">
+            <table class="table cart-table align-middle" id="items">
+              <thead>
+                <tr>
+                  <th style="width:80px;">Item</th>
+                  <th>Medicine</th>
+                  <th style="width:120px;" class="text-end">Price</th>
+                  <th style="width:120px;">Qty</th>
+                  <th style="width:120px;" class="text-end">Subtotal</th>
+                  <th style="width:110px;" class="text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% if cart_items %}
+                {% for med,qty in cart_items %}
+                <tr class="item-row">
+                  <td>
+                    <img class="cart-thumb" src="{% if med.image %}{{ med.image.url }}{% else %}https://via.placeholder.com/128.png?text=Medicine{% endif %}" alt="thumb">
+                  </td>
+                  <td>
+                    <select class="form-select" name="item-{{ forloop.counter0 }}-medicine" required>
+                      <option value="">-- Select --</option>
+                      {% for m in medicines %}
+                        <option value="{{ m.id }}" data-price="{{ m.unit_price }}" data-img="{% if m.image %}{{ m.image.url }}{% endif %}" data-stock="{{ m.quantity_in_stock }}" {% if m.id == med.id %}selected{% endif %}>{{ m.name }} ({{ m.quantity_in_stock }} in stock)</option>
+                      {% endfor %}
+                    </select>
+                    <div class="stock-note">Stock: <span class="stock-val">{{ med.quantity_in_stock }}</span></div>
+                  </td>
+                  <td class="text-end">
+                    <input type="number" step="0.01" min="0" class="form-control text-end price" value="{{ med.unit_price }}" disabled>
+                  </td>
+                  <td>
+                    <input type="number" min="1" class="form-control qty" name="item-{{ forloop.counter0 }}-qty" value="{{ qty }}" required>
+                  </td>
+                  <td class="cart-subtotal fw-semibold">0.00</td>
+                  <td class="text-end cart-actions">
+                    <button class="btn btn-outline-danger btn-sm remove-row" type="button">Remove</button>
+                  </td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr class="item-row">
+                  <td>
+                    <img class="cart-thumb" src="https://via.placeholder.com/128.png?text=Medicine" alt="thumb">
+                  </td>
+                  <td>
+                    <select class="form-select" name="item-0-medicine" required>
+                      <option value="">-- Select --</option>
+                      {% for m in medicines %}
+                        <option value="{{ m.id }}" data-price="{{ m.unit_price }}" data-img="{% if m.image %}{{ m.image.url }}{% endif %}" data-stock="{{ m.quantity_in_stock }}">{{ m.name }} ({{ m.quantity_in_stock }} in stock)</option>
+                      {% endfor %}
+                    </select>
+                    <div class="stock-note">Stock: <span class="stock-val">-</span></div>
+                  </td>
+                  <td class="text-end">
+                    <input type="number" step="0.01" min="0" class="form-control text-end price" value="0" disabled>
+                  </td>
+                  <td>
+                    <input type="number" min="1" class="form-control qty" name="item-0-qty" value="1" required>
+                  </td>
+                  <td class="cart-subtotal fw-semibold">0.00</td>
+                  <td class="text-end cart-actions">
+                    <button class="btn btn-outline-danger btn-sm remove-row" type="button">Remove</button>
+                  </td>
+                </tr>
+              {% endif %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary" id="add-row" type="button">Add Another</button>
+              <button class="btn btn-outline-dark" id="clear-cart" type="button">Clear Cart</button>
+            </div>
+            <div class="h5 mb-0">Total: <span id="grand-total">0.00</span></div>
+          </div>
+
+          <div class="mt-3">
+            <button class="btn btn-primary" id="complete-sale" type="submit">Complete Sale</button>
+            <a class="btn btn-outline-secondary" href="{% url 'medicine_list' %}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card cart-summary">
+      <div class="card-body">
+        <h5 class="mb-3">Summary</h5>
+        <div class="d-flex justify-content-between">
+          <span>Items</span>
+          <span id="summary-items">1</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>Subtotal</span>
+          <span id="summary-subtotal">0.00</span>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-between fw-bold">
+          <span>Total</span>
+          <span id="summary-total">0.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Provide session cart as JSON for JS consumption #}
+{{ session_cart|json_script:"session-cart" }}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    // Core elements
+    const itemsTable = document.getElementById('items');
+    if (!itemsTable) return;
+    
+    const tbody = itemsTable.querySelector('tbody');
+    const totalForms = document.getElementById('total-forms');
+    const grandTotalEl = document.getElementById('grand-total');
+    const summaryItems = document.getElementById('summary-items');
+    const summarySubtotal = document.getElementById('summary-subtotal');
+    const summaryTotal = document.getElementById('summary-total');
+    
+    // Helper function to get CSRF token from cookies
+    function getCsrfToken() {
+      return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+    
+    // Build medicine options list from the first select
+    const medicineOptions = [];
+    const firstSelect = tbody.querySelector('select');
+    if (firstSelect) {
+      Array.from(firstSelect.options)
+        .filter(opt => opt.value)
+        .forEach(opt => {
+          medicineOptions.push({
+            value: opt.value,
+            text: opt.textContent,
+            price: opt.getAttribute('data-price') || '0',
+            img: opt.getAttribute('data-img') || '',
+            stock: opt.getAttribute('data-stock') || ''
+          });
+        });
+    }
+    
+    // Rebuild select options in a row
+    function rebuildSelect(select) {
+      const currentValue = select.value;
+      
+      // Clear and add placeholder
+      select.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '-- Select --';
+      select.appendChild(placeholder);
+      
+      // Add all medicine options
+      medicineOptions.forEach(option => {
+        const opt = document.createElement('option');
+        opt.value = option.value;
+        opt.textContent = option.text;
+        opt.setAttribute('data-price', option.price);
+        opt.setAttribute('data-stock', option.stock);
+        if (option.img) {
+          opt.setAttribute('data-img', option.img);
+        }
+        select.appendChild(opt);
+      });
+      
+      // Restore previous value if possible
+      if (currentValue) {
+        select.value = currentValue;
+      }
+    }
+    
+    // Calculate totals
+    function recalculateTotals() {
+      let total = 0;
+      let itemCount = 0;
+      
+      Array.from(tbody.querySelectorAll('.item-row')).forEach(row => {
+        const select = row.querySelector('select');
+        const qtyInput = row.querySelector('.qty');
+        const priceInput = row.querySelector('.price');
+        const subtotalCell = row.querySelector('.cart-subtotal');
+        const thumbImg = row.querySelector('.cart-thumb');
+        const stockSpan = row.querySelector('.stock-val');
+        
+        // Get selected option data
+        const selectedOption = select.selectedOptions[0];
+        const price = parseFloat(selectedOption?.getAttribute('data-price') || '0');
+        const img = selectedOption?.getAttribute('data-img') || '';
+        const stock = selectedOption?.getAttribute('data-stock') || '-';
+        const qty = parseInt(qtyInput.value || '0');
+        
+        // Update UI elements
+        if (thumbImg) {
+          thumbImg.src = img || 'https://via.placeholder.com/128.png?text=Medicine';
+        }
+        if (stockSpan) {
+          stockSpan.textContent = stock;
+        }
+        if (priceInput) {
+          priceInput.value = price.toFixed(2);
+        }
+        
+        // Calculate subtotal
+        const subtotal = price * qty;
+        if (subtotalCell) {
+          subtotalCell.textContent = subtotal.toFixed(2);
+        }
+        
+        // Add to totals if valid
+        if (select.value && qty > 0) {
+          total += subtotal;
+          itemCount += qty;
+        }
+      });
+      
+      // Update summary displays
+      if (grandTotalEl) grandTotalEl.textContent = total.toFixed(2);
+      if (summarySubtotal) summarySubtotal.textContent = total.toFixed(2);
+      if (summaryTotal) summaryTotal.textContent = total.toFixed(2);
+      if (summaryItems) summaryItems.textContent = itemCount;
+    }
+    
+    // Initial calculation
+    recalculateTotals();
+    
+    // Add event listeners for changes
+    tbody.addEventListener('change', function(e) {
+      if (e.target.tagName === 'SELECT' || e.target.classList.contains('qty')) {
+        recalculateTotals();
+      }
+    });
+    
+    tbody.addEventListener('input', function(e) {
+      if (e.target.classList.contains('qty')) {
+        recalculateTotals();
+      }
+    });
+    
+    // Add new row button
+    document.getElementById('add-row').addEventListener('click', function() {
+      const rowCount = tbody.querySelectorAll('.item-row').length;
+      const newRow = tbody.querySelector('.item-row').cloneNode(true);
+      
+      // Reset and prepare the new row
+      const select = newRow.querySelector('select');
+      const qtyInput = newRow.querySelector('.qty');
+      
+      select.name = `item-${rowCount}-medicine`;
+      select.value = '';
+      
+      qtyInput.name = `item-${rowCount}-qty`;
+      qtyInput.value = '1';
+      
+      // Reset other elements
+      const priceInput = newRow.querySelector('.price');
+      if (priceInput) priceInput.value = '0.00';
+      
+      const subtotalCell = newRow.querySelector('.cart-subtotal');
+      if (subtotalCell) subtotalCell.textContent = '0.00';
+      
+      const thumbImg = newRow.querySelector('.cart-thumb');
+      if (thumbImg) thumbImg.src = 'https://via.placeholder.com/128.png?text=Medicine';
+      
+      const stockSpan = newRow.querySelector('.stock-val');
+      if (stockSpan) stockSpan.textContent = '-';
+      
+      // Rebuild select options
+      rebuildSelect(select);
+      
+      // Add to DOM and update form count
+      tbody.appendChild(newRow);
+      totalForms.value = String(rowCount + 1);
+      
+      recalculateTotals();
+    });
+    
+    // Handle remove buttons
+    tbody.addEventListener('click', async function(e) {
+      if (!e.target.classList.contains('remove-row')) return;
+      
+      const row = e.target.closest('.item-row');
+      if (!row) return;
+      
+      const select = row.querySelector('select');
+      const medId = select?.value;
+      
+      // If no medicine selected, just remove the row
+      if (!medId) {
+        // Only remove if there's more than one row
+        if (tbody.querySelectorAll('.item-row').length > 1) {
+          row.remove();
+          recalculateTotals();
+        }
+        return;
+      }
+      
+      try {
+        // Send remove request to server
+        const response = await fetch('{% url "cart_remove" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCsrfToken()
+          },
+          body: new URLSearchParams({
+            id: medId
+          })
+        });
+        
+        if (response.ok) {
+          // Refresh the page to update cart state
+          window.location.reload();
+        } else {
+          console.error('Failed to remove item');
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Error removing item:', error);
+        window.location.reload();
+      }
+    });
+    
+    // Handle clear cart button
+    document.getElementById('clear-cart').addEventListener('click', async function() {
+      try {
+        const response = await fetch('{% url "cart_clear" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCsrfToken()
+          }
+        });
+        
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          console.error('Failed to clear cart');
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Error clearing cart:', error);
+        window.location.reload();
+      }
+    });
+    
+    // Form submission handler for Complete Sale
+    document.getElementById('sell-form').addEventListener('submit', function(e) {
+      // Prevent the default form submission
+      e.preventDefault();
+      
+      const rows = Array.from(tbody.querySelectorAll('.item-row'));
+      let validRows = 0;
+      
+      // Reindex valid rows for submission
+      rows.forEach((row, index) => {
+        const select = row.querySelector('select');
+        const qtyInput = row.querySelector('.qty');
+        
+        if (!select.value || parseInt(qtyInput.value || '0') <= 0) {
+          // Invalid row - clear names so they don't submit
+          select.name = '';
+          qtyInput.name = '';
+        } else {
+          // Valid row - update index
+          select.name = `item-${validRows}-medicine`;
+          qtyInput.name = `item-${validRows}-qty`;
+          validRows++;
+        }
+      });
+      
+      // Update total forms count
+      totalForms.value = String(validRows);
+      
+      // Check if we have valid items
+      if (validRows === 0) {
+        alert('Please add at least one valid item to complete the sale.');
+        return;
+      }
+      
+      // Submit the form programmatically
+      this.submit();
+    });
+    
+    // Also handle the complete-sale button click directly
+    document.getElementById('complete-sale').addEventListener('click', function(e) {
+      // The form's submit event handler will take care of validation and submission
+    });
+  });
+</script>
+{% endblock %}
+
+

@@ -1,0 +1,11 @@
+include LICENSE
+include README.md
+include requirements.txt
+
+recursive-include templates *
+recursive-include inventory/templates *
+recursive-include inventory/templatetags *
+recursive-include inventory/static *
+
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
